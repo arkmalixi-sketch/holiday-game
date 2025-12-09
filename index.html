@@ -347,8 +347,11 @@
     <script>
         // --- GAME VARIABLES ---
         let players = [], bonuses = [], winnerCount = 0;
-        let userSpendable = {}; // Used for Moving (Resets)
-        let userLifetime = {};  // Used for Leaderboard (Never Resets)
+        
+        // TWO COIN BUCKETS: Spendable (for moving) and Lifetime (for Leaderboard)
+        let userSpendable = {}; 
+        let userLifetime = {};  
+        
         const totalTiles = 30;
         const COST_PER_MOVE = 1000; // 1000 COINS = 1 MOVE
         const colors = ['#ff3b30', '#007aff', '#ff9500', '#af52de', '#ff2d55', '#5ac8fa', '#34c759', '#FFD700']; 
@@ -395,7 +398,7 @@
             if (!userLifetime[cleanName]) userLifetime[cleanName] = 0;
             
             userSpendable[cleanName] += totalValue;
-            userLifetime[cleanName] += totalValue;
+            userLifetime[cleanName] += totalValue; // This ONLY goes up
 
             // 2. Check Threshold
             if (userSpendable[cleanName] >= COST_PER_MOVE) {
@@ -548,7 +551,7 @@
                 players = [];
                 winnerCount = 0;
                 userSpendable = {}; 
-                userLifetime = {};
+                userLifetime = {}; // Reset lifetime stats too
                 setupDefaultBonuses();
                 if(document.getElementById('set-custom').checked) saveSettings();
                 saveData();
@@ -737,7 +740,7 @@
                 const statusText = p.finishRank ? "FINISHED" : `Tile ${p.tileIndex + 1}`;
                 const nameColor = p.finishRank ? "#FFD700" : "white";
                 
-                // --- NEW: COIN TOTAL ---
+                // --- SHOW LIFETIME COINS ---
                 const coins = userLifetime[p.name] || 0;
                 
                 div.innerHTML = `
@@ -784,8 +787,11 @@
             localStorage.setItem('holiday_players', JSON.stringify(players));
             localStorage.setItem('holiday_bonuses', JSON.stringify(bonuses));
             localStorage.setItem('holiday_winners', winnerCount);
+            
+            // SAVE BOTH BUCKETS
             localStorage.setItem('holiday_spendable', JSON.stringify(userSpendable));
             localStorage.setItem('holiday_lifetime', JSON.stringify(userLifetime));
+            
             const t = document.getElementById('board-title').innerText;
             const d = document.getElementById('board-desc').innerText;
             localStorage.setItem('holiday_title', t);
@@ -796,6 +802,8 @@
             const p = localStorage.getItem('holiday_players');
             const b = localStorage.getItem('holiday_bonuses');
             const w = localStorage.getItem('holiday_winners');
+            
+            // LOAD BOTH BUCKETS
             const s = localStorage.getItem('holiday_spendable');
             const l = localStorage.getItem('holiday_lifetime');
             
