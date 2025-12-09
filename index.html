@@ -103,7 +103,7 @@
             border-bottom: 1px solid #ddd;
         }
 
-        h1 { margin: 0; font-size: 24px; color: #006633; }
+        h1 { margin: 0; font-size: 24px; color: #006633; white-space: pre-wrap; }
         h2 { margin: 5px 0 0 0; font-size: 12px; color: #666; font-weight: normal; }
 
         #player-input {
@@ -170,7 +170,7 @@
         }
         .lb-rank { width: 25px; color: #aaa; font-weight: bold; }
 
-        /* --- SETTINGS STYLING (FIXED) --- */
+        /* --- SETTINGS STYLING --- */
         .modal {
             display: none;
             position: fixed;
@@ -192,19 +192,19 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
         }
         
-        /* The Settings List Look */
         .settings-group {
             background: #f9f9f9;
             border-radius: 10px;
-            padding: 5px 15px;
+            padding: 10px 15px;
             margin-bottom: 15px;
             border: 1px solid #eee;
+            text-align: left;
         }
 
         .settings-row {
             display: flex;
             justify-content: space-between;
-            align-items: center; /* Crucial for alignment */
+            align-items: center;
             padding: 12px 0;
             border-bottom: 1px solid #e0e0e0;
             font-size: 15px;
@@ -218,15 +218,13 @@
             text-align: left;
         }
 
-        /* Pretty Checkboxes */
         input[type="checkbox"] {
             width: 22px;
             height: 22px;
             cursor: pointer;
-            accent-color: #34c759; /* Green Color */
+            accent-color: #34c759; 
         }
 
-        /* Custom Input Area */
         #custom-inputs {
             display: none;
             background: #eef;
@@ -238,7 +236,6 @@
         }
         .input-label { font-size: 11px; color: #666; margin-bottom: 4px; display: block; font-weight:bold; }
         
-        /* Background Decorations */
         .snow { position: absolute; font-size: 40px; opacity: 0.1; user-select: none; pointer-events: none;}
     </style>
 </head>
@@ -290,6 +287,14 @@
                     <label for="set-theme">Use Holiday Theme 🎄</label>
                     <input type="checkbox" id="set-theme" checked onchange="toggleTheme()">
                 </div>
+                
+                <div style="margin-top:15px;">
+                    <span class="input-label">Board Title:</span>
+                    <input type="text" id="set-board-title" style="width:100%; box-sizing: border-box; margin-bottom:10px;">
+                    <span class="input-label">Instruction / Cost:</span>
+                    <input type="text" id="set-board-desc" style="width:100%; box-sizing: border-box;">
+                    <button onclick="saveSettings()" style="width:100%; margin-top:8px; background: #007AFF; font-size:12px;">Update Text</button>
+                </div>
             </div>
             
             <div class="settings-group">
@@ -337,7 +342,7 @@
         loadData();
         if(bonuses.length === 0) setupDefaultBonuses();
         
-        // Init UI
+        // Init Custom UI
         const customBonus = bonuses.find(b => b.type === "CUSTOM");
         if(customBonus) {
             document.getElementById('set-custom').checked = true;
@@ -352,6 +357,13 @@
 
         // --- FUNCTIONS ---
 
+        function openSettings() {
+            document.getElementById('settings-modal').style.display = 'flex';
+            // Pre-fill Title Inputs with current text
+            document.getElementById('set-board-title').value = document.getElementById('board-title').innerText;
+            document.getElementById('set-board-desc').value = document.getElementById('board-desc').innerText;
+        }
+
         function toggleCustomUI() {
             const isChecked = document.getElementById('set-custom').checked;
             const ui = document.getElementById('custom-inputs');
@@ -360,10 +372,15 @@
         }
 
         function saveSettings() {
+            // 1. Save Title & Desc
+            const newTitle = document.getElementById('set-board-title').value;
+            const newDesc = document.getElementById('set-board-desc').value;
+            document.getElementById('board-title').innerText = newTitle;
+            document.getElementById('board-desc').innerText = newDesc;
+
+            // 2. Save Custom Tile
             const isCustomEnabled = document.getElementById('set-custom').checked;
-            
-            // Remove old custom
-            bonuses = bonuses.filter(b => b.type !== "CUSTOM");
+            bonuses = bonuses.filter(b => b.type !== "CUSTOM"); // Remove old
             
             if (isCustomEnabled) {
                 const tileVal = parseInt(document.getElementById('custom-idx').value) - 1; 
@@ -664,6 +681,12 @@
             localStorage.setItem('holiday_players', JSON.stringify(players));
             localStorage.setItem('holiday_bonuses', JSON.stringify(bonuses));
             localStorage.setItem('holiday_winners', winnerCount);
+            
+            // Save Texts
+            const t = document.getElementById('board-title').innerText;
+            const d = document.getElementById('board-desc').innerText;
+            localStorage.setItem('holiday_title', t);
+            localStorage.setItem('holiday_desc', d);
         }
 
         function loadData() {
@@ -673,6 +696,11 @@
             if(p) players = JSON.parse(p);
             if(b) bonuses = JSON.parse(b);
             if(w) winnerCount = parseInt(w);
+            
+            const t = localStorage.getItem('holiday_title');
+            const d = localStorage.getItem('holiday_desc');
+            if(t) document.getElementById('board-title').innerText = t;
+            if(d) document.getElementById('board-desc').innerText = d;
         }
 
         function toggleTheme() {
@@ -687,27 +715,6 @@
             document.getElementById('alert-modal').style.display = 'flex';
         }
         function closeModal() { document.getElementById('alert-modal').style.display = 'none'; }
-        function openSettings() { document.getElementById('settings-modal').style.display = 'flex'; }
-        function saveSettings() { 
-            // Also save custom fields if enabled
-            const isCustomEnabled = document.getElementById('set-custom').checked;
-            bonuses = bonuses.filter(b => b.type !== "CUSTOM");
-            if (isCustomEnabled) {
-                const tileVal = parseInt(document.getElementById('custom-idx').value) - 1; 
-                const title = document.getElementById('custom-title').value;
-                const msg = document.getElementById('custom-msg').value;
-                bonuses.push({
-                    id: 999,
-                    tileIndex: tileVal,
-                    type: "CUSTOM",
-                    isClaimed: false,
-                    customTitle: title,
-                    customMsg: msg
-                });
-            }
-            saveData();
-            renderBoard(); 
-        }
     </script>
 </body>
 </html>
