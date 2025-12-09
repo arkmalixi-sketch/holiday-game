@@ -85,6 +85,17 @@ Click the **Settings** button (Gear Icon) to access the Admin Panel:
 
 ---
 
+##  iOS Native Version (Mac/iPad Only)
+
+If you prefer a native app experience and have a Mac with Xcode:
+
+1.  **Get the Code:** Go to the `/ios` folder in this repository and open `ContentView.swift`.
+2.  **Open Xcode:** Create a new "iOS App" project.
+3.  **Paste:** Replace the default code in `ContentView.swift` with the code from this repo.
+4.  **Run:** Connect your iPad and hit Play!
+
+---
+
 *Built for the streaming community.*
 
 Like it? Tip or Buy me a coffee: https://ko-fi.com/arkayy18
