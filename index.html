@@ -23,20 +23,24 @@
             overflow: hidden;
         }
 
-        /* LEFT SIDE: BOARD */
+        /* LEFT SIDE: BOARD AREA */
         #board-container {
             flex: 1;
             padding: 20px;
             overflow-y: auto;
             position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center; /* Center everything */
         }
 
         #grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
             gap: 10px;
+            width: 100%;
             max-width: 800px;
-            margin: 0 auto;
+            margin-bottom: 20px;
         }
 
         .tile {
@@ -86,6 +90,31 @@
             cursor: pointer;
         }
 
+        /* LEADERBOARD (Moved to Main Area) */
+        #leaderboard-panel {
+            width: 100%;
+            max-width: 800px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 12px;
+            padding: 15px;
+            margin-top: auto; /* Push to bottom if space allows */
+            border: 1px solid rgba(255,255,255,0.1);
+            display: none; /* Hidden if empty */
+        }
+
+        .lb-row {
+            display: flex;
+            align-items: center;
+            padding: 8px 10px;
+            background: rgba(255,255,255,0.1);
+            margin-bottom: 5px;
+            border-radius: 6px;
+        }
+        
+        .lb-rank { width: 30px; font-weight: bold; color: #ccc; }
+        .lb-name { flex: 1; font-weight: bold; color: white; }
+        .lb-status { font-size: 12px; color: #ddd; background: rgba(0,0,0,0.3); padding: 3px 6px; border-radius: 4px; }
+
         /* RIGHT SIDE: CONTROLS */
         #controls {
             width: 320px;
@@ -95,6 +124,7 @@
             flex-direction: column;
             border-left: 1px solid #ccc;
             box-shadow: -5px 0 15px rgba(0,0,0,0.2);
+            z-index: 10;
         }
 
         #header {
@@ -152,23 +182,6 @@
         .del-btn { background: #ff3b30; padding: 4px 8px; font-size: 12px; }
         .move-btn { background: #34c759; padding: 4px 8px; }
         .back-btn { background: #007AFF; padding: 4px 8px; }
-
-        /* LEADERBOARD */
-        #leaderboard {
-            background: #333;
-            color: white;
-            padding: 15px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        .lb-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 5px 0;
-            font-size: 13px;
-            border-bottom: 1px solid #444;
-        }
-        .lb-rank { width: 25px; color: #aaa; font-weight: bold; }
 
         /* --- SETTINGS STYLING --- */
         .modal {
@@ -244,7 +257,13 @@
     <div id="board-container">
         <div class="snow" style="top: 20px; left: 20px;">❄️</div>
         <div class="snow" style="bottom: 20px; right: 20px;">❄️</div>
+        
         <div id="grid"></div>
+
+        <div id="leaderboard-panel">
+            <div style="color: orange; font-weight: bold; margin-bottom: 10px; font-size: 18px;">🏆 LIVE STANDINGS</div>
+            <div id="lb-list"></div>
+        </div>
     </div>
 
     <div id="controls">
@@ -263,11 +282,6 @@
         <div id="player-list"></div>
 
         <button onclick="resetBoard()" style="margin: 10px; background: transparent; color: red; border: 1px solid red;">Reset Board</button>
-
-        <div id="leaderboard">
-            <div style="text-align:center; font-weight:bold; margin-bottom:10px; color: orange;">🏆 LIVE STANDINGS</div>
-            <div id="lb-list"></div>
-        </div>
     </div>
 
     <div id="alert-modal" class="modal">
@@ -342,7 +356,7 @@
         loadData();
         if(bonuses.length === 0) setupDefaultBonuses();
         
-        // Init Custom UI
+        // Init UI
         const customBonus = bonuses.find(b => b.type === "CUSTOM");
         if(customBonus) {
             document.getElementById('set-custom').checked = true;
@@ -359,7 +373,6 @@
 
         function openSettings() {
             document.getElementById('settings-modal').style.display = 'flex';
-            // Pre-fill Title Inputs with current text
             document.getElementById('set-board-title').value = document.getElementById('board-title').innerText;
             document.getElementById('set-board-desc').value = document.getElementById('board-desc').innerText;
         }
@@ -372,28 +385,20 @@
         }
 
         function saveSettings() {
-            // 1. Save Title & Desc
             const newTitle = document.getElementById('set-board-title').value;
             const newDesc = document.getElementById('set-board-desc').value;
             document.getElementById('board-title').innerText = newTitle;
             document.getElementById('board-desc').innerText = newDesc;
 
-            // 2. Save Custom Tile
             const isCustomEnabled = document.getElementById('set-custom').checked;
-            bonuses = bonuses.filter(b => b.type !== "CUSTOM"); // Remove old
+            bonuses = bonuses.filter(b => b.type !== "CUSTOM"); 
             
             if (isCustomEnabled) {
                 const tileVal = parseInt(document.getElementById('custom-idx').value) - 1; 
                 const title = document.getElementById('custom-title').value;
                 const msg = document.getElementById('custom-msg').value;
-                
                 bonuses.push({
-                    id: 999,
-                    tileIndex: tileVal,
-                    type: "CUSTOM",
-                    isClaimed: false,
-                    customTitle: title,
-                    customMsg: msg
+                    id: 999, tileIndex: tileVal, type: "CUSTOM", isClaimed: false, customTitle: title, customMsg: msg
                 });
             }
             saveData();
@@ -406,11 +411,7 @@
             if (!name) return;
 
             const newPlayer = {
-                id: Date.now(),
-                name: name,
-                tileIndex: 0,
-                colorIndex: Math.floor(Math.random() * 7),
-                finishRank: null
+                id: Date.now(), name: name, tileIndex: 0, colorIndex: Math.floor(Math.random() * 7), finishRank: null
             };
             players.push(newPlayer);
             input.value = '';
@@ -464,36 +465,22 @@
             const bonus = bonuses[bonusIdx];
             if (!isBonusEnabled(bonus.type)) return;
 
-            let title = "";
-            let msg = "";
-            let teleport = false;
+            let title = ""; let msg = ""; let teleport = false;
 
             if (bonus.type === "TRAP") {
-                title = "⛔️ OOPS! TRAP! ⛔️";
-                msg = `${players[pIndex].name} slipped and fell back 1 space!`;
-                players[pIndex].tileIndex = Math.max(0, tileIndex - 1);
-                teleport = true;
+                title = "⛔️ OOPS! TRAP! ⛔️"; msg = `${players[pIndex].name} slipped and fell back 1 space!`;
+                players[pIndex].tileIndex = Math.max(0, tileIndex - 1); teleport = true;
             } else if (bonus.type === "POINTS") {
-                title = "💎 LIVE POINTS! 💎";
-                msg = `${players[pIndex].name} found 100 Live Points!`;
-                teleport = true;
+                title = "💎 LIVE POINTS! 💎"; msg = `${players[pIndex].name} found 100 Live Points!`; teleport = true;
             } else if (bonus.type === "SHIRT") {
-                title = "👕 T-SHIRT UNLOCKED! 👕";
-                msg = "Put their name on a shirt!";
-                bonus.isClaimed = true;
+                title = "👕 T-SHIRT UNLOCKED! 👕"; msg = "Put their name on a shirt!"; bonus.isClaimed = true;
             } else if (bonus.type === "SPIN") {
-                title = "🎰 SPIN THE WHEEL! 🎰";
-                msg = "Spin the wheel for a prize!";
-                bonus.isClaimed = true;
+                title = "🎰 SPIN THE WHEEL! 🎰"; msg = "Spin the wheel for a prize!"; bonus.isClaimed = true;
             } else if (bonus.type === "GOLD") {
-                title = "👑 GOLD STATUS! 👑";
-                msg = `${players[pIndex].name} is now GOLDEN!`;
-                players[pIndex].colorIndex = 7;
-                bonus.isClaimed = true;
+                title = "👑 GOLD STATUS! 👑"; msg = `${players[pIndex].name} is now GOLDEN!`;
+                players[pIndex].colorIndex = 7; bonus.isClaimed = true;
             } else if (bonus.type === "CUSTOM") {
-                title = `✨ ${bonus.customTitle || "MYSTERY"} ✨`;
-                msg = bonus.customMsg || "You found the secret stash!";
-                bonus.isClaimed = true;
+                title = `✨ ${bonus.customTitle || "MYSTERY"} ✨`; msg = bonus.customMsg || "You found the secret stash!"; bonus.isClaimed = true;
             }
 
             showAlert(title, msg);
@@ -511,11 +498,9 @@
             players[pIndex].finishRank = winnerCount;
             let title = "🎉 FINISHER! 🎉";
             let msg = `${players[pIndex].name} finished!`;
-
             if(winnerCount === 1) { title = "🏆 1ST PLACE! 🏆"; msg = "GRAND PRIZE WINNER!"; }
             if(winnerCount === 2) { title = "🥈 2ND PLACE! 🥈"; }
             if(winnerCount === 3) { title = "🥉 3RD PLACE! 🥉"; }
-
             showAlert(title, msg);
         }
 
@@ -632,18 +617,33 @@
         function renderLeaderboard() {
             const lb = document.getElementById('lb-list');
             lb.innerHTML = '';
+            
+            if(players.length === 0) {
+                document.getElementById('leaderboard-panel').style.display = 'none';
+                return;
+            }
+            
+            document.getElementById('leaderboard-panel').style.display = 'block';
+
             const sorted = [...players].sort((a, b) => {
                 if (a.finishRank && b.finishRank) return a.finishRank - b.finishRank;
                 if (a.finishRank) return -1;
                 if (b.finishRank) return 1;
                 return b.tileIndex - a.tileIndex;
             });
+
             sorted.forEach((p, index) => {
                 const div = document.createElement('div');
                 div.className = 'lb-row';
                 const rankText = p.finishRank ? `🏆 #${p.finishRank}` : `#${index + 1}`;
                 const statusText = p.finishRank ? "FINISHED" : `Tile ${p.tileIndex + 1}`;
-                div.innerHTML = `<span class="lb-rank">${rankText}</span><span style="color:${p.finishRank ? '#FFD700' : 'white'}; font-weight:bold;">${p.name}</span><span style="color:#aaa;">${statusText}</span>`;
+                const nameColor = p.finishRank ? "#FFD700" : "white";
+                
+                div.innerHTML = `
+                    <span class="lb-rank">${rankText}</span>
+                    <span class="lb-name" style="color:${nameColor}">${p.name}</span>
+                    <span class="lb-status">${statusText}</span>
+                `;
                 lb.appendChild(div);
             });
         }
@@ -682,7 +682,6 @@
             localStorage.setItem('holiday_bonuses', JSON.stringify(bonuses));
             localStorage.setItem('holiday_winners', winnerCount);
             
-            // Save Texts
             const t = document.getElementById('board-title').innerText;
             const d = document.getElementById('board-desc').innerText;
             localStorage.setItem('holiday_title', t);
