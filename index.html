@@ -23,7 +23,7 @@
             overflow: hidden;
         }
 
-        /* LEFT SIDE: BOARD AREA */
+        /* LEFT SIDE: BOARD */
         #board-container {
             flex: 1;
             padding: 20px;
@@ -31,7 +31,7 @@
             position: relative;
             display: flex;
             flex-direction: column;
-            align-items: center; /* Center everything */
+            align-items: center; 
         }
 
         #grid {
@@ -90,16 +90,16 @@
             cursor: pointer;
         }
 
-        /* LEADERBOARD (Moved to Main Area) */
+        /* LEADERBOARD */
         #leaderboard-panel {
             width: 100%;
             max-width: 800px;
             background: rgba(0, 0, 0, 0.4);
             border-radius: 12px;
             padding: 15px;
-            margin-top: auto; /* Push to bottom if space allows */
+            margin-top: auto; 
             border: 1px solid rgba(255,255,255,0.1);
-            display: none; /* Hidden if empty */
+            display: none;
         }
 
         .lb-row {
@@ -135,6 +135,16 @@
 
         h1 { margin: 0; font-size: 24px; color: #006633; white-space: pre-wrap; }
         h2 { margin: 5px 0 0 0; font-size: 12px; color: #666; font-weight: normal; }
+        
+        #connection-status {
+            font-size: 11px;
+            font-weight: bold;
+            margin-top: 5px;
+            padding: 4px;
+            background: #eee;
+            border-radius: 4px;
+            color: #ff3b30; /* Default Red */
+        }
 
         #player-input {
             padding: 15px;
@@ -183,7 +193,7 @@
         .move-btn { background: #34c759; padding: 4px 8px; }
         .back-btn { background: #007AFF; padding: 4px 8px; }
 
-        /* --- SETTINGS STYLING --- */
+        /* MODAL & SETTINGS */
         .modal {
             display: none;
             position: fixed;
@@ -225,18 +235,8 @@
         }
         .settings-row:last-child { border-bottom: none; }
         
-        .settings-row label {
-            cursor: pointer;
-            flex: 1;
-            text-align: left;
-        }
-
-        input[type="checkbox"] {
-            width: 22px;
-            height: 22px;
-            cursor: pointer;
-            accent-color: #34c759; 
-        }
+        .settings-row label { cursor: pointer; flex: 1; text-align: left; }
+        input[type="checkbox"] { width: 22px; height: 22px; cursor: pointer; accent-color: #34c759; }
 
         #custom-inputs {
             display: none;
@@ -257,9 +257,7 @@
     <div id="board-container">
         <div class="snow" style="top: 20px; left: 20px;">❄️</div>
         <div class="snow" style="bottom: 20px; right: 20px;">❄️</div>
-        
         <div id="grid"></div>
-
         <div id="leaderboard-panel">
             <div style="color: orange; font-weight: bold; margin-bottom: 10px; font-size: 18px;">🏆 LIVE STANDINGS</div>
             <div id="lb-list"></div>
@@ -270,7 +268,9 @@
         <div id="header">
             <h1 id="board-title">Holiday<br>Game Board</h1>
             <h2 id="board-desc">🎁 1k Gift = 1 Move Forward</h2>
-            <button onclick="openSettings()" style="margin-top:12px; background:#8e8e93; font-size:13px; width:100%;">⚙️ Settings & Randomize</button>
+            <div id="connection-status">🔴 Disconnected (Streamer.bot)</div>
+            <button onclick="connectWebSocket()" style="margin-top:10px; background:#5856d6; font-size:11px; width:100%;">📡 Reconnect</button>
+            <button onclick="openSettings()" style="margin-top:5px; background:#8e8e93; font-size:13px; width:100%;">⚙️ Settings & Randomize</button>
         </div>
 
         <div id="player-input">
@@ -278,7 +278,7 @@
             <button onclick="addPlayer()">+</button>
         </div>
 
-        <div style="padding: 10px 10px 0 10px; font-size: 12px; color: #888;">Controls:</div>
+        <div style="padding: 10px 10px 0 10px; font-size: 12px; color: #888;">Manual Controls:</div>
         <div id="player-list"></div>
 
         <button onclick="resetBoard()" style="margin: 10px; background: transparent; color: red; border: 1px solid red;">Reset Board</button>
@@ -301,7 +301,6 @@
                     <label for="set-theme">Use Holiday Theme 🎄</label>
                     <input type="checkbox" id="set-theme" checked onchange="toggleTheme()">
                 </div>
-                
                 <div style="margin-top:15px;">
                     <span class="input-label">Board Title:</span>
                     <input type="text" id="set-board-title" style="width:100%; box-sizing: border-box; margin-bottom:10px;">
@@ -344,19 +343,77 @@
     </div>
 
     <script>
-        // --- JAVASCRIPT LOGIC ---
-        
-        let players = [];
-        let bonuses = [];
-        let winnerCount = 0;
-        let totalTiles = 30;
-        
+        // --- GAME VARIABLES ---
+        let players = [], bonuses = [], winnerCount = 0;
+        const totalTiles = 30;
         const colors = ['#ff3b30', '#007aff', '#ff9500', '#af52de', '#ff2d55', '#5ac8fa', '#34c759', '#FFD700']; 
 
+        // --- WEBSOCKET CONNECTION ---
+        let socket;
+        function connectWebSocket() {
+            const statusDiv = document.getElementById('connection-status');
+            statusDiv.innerText = "🟡 Connecting...";
+            statusDiv.style.color = "orange";
+            
+            // Connect to local Streamer.bot
+            socket = new WebSocket("ws://127.0.0.1:8080/");
+
+            socket.onopen = () => {
+                statusDiv.innerText = "🟢 Connected to Streamer.bot";
+                statusDiv.style.color = "green";
+                // Subscribe to TikTok Gifts
+                socket.send(JSON.stringify({
+                    "request": "Subscribe",
+                    "events": { "TikTok": ["Gift"] },
+                    "id": "123"
+                }));
+            };
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if(data.event && data.event.source === 'TikTok' && data.event.type === 'Gift') {
+                    handleStreamEvent(data);
+                }
+            };
+
+            socket.onclose = () => {
+                statusDiv.innerText = "🔴 Disconnected (Retry)";
+                statusDiv.style.color = "red";
+            };
+        }
+
+        // --- HANDLING GIFTS ---
+        function handleStreamEvent(data) {
+            const username = data.data.user.name;
+            const giftName = data.data.gift.name;
+            // Default: 1 Gift = 1 Move. (You can change this logic here)
+            const moves = 1; 
+            
+            // 1. Find or Create Player
+            let player = players.find(p => p.name.toUpperCase() === username.toUpperCase().substring(0,4));
+            
+            if (!player) {
+                // Auto-Add new player
+                const newId = Date.now();
+                player = {
+                    id: newId,
+                    name: username.toUpperCase().substring(0, 4),
+                    tileIndex: 0,
+                    colorIndex: Math.floor(Math.random() * 7),
+                    finishRank: null
+                };
+                players.push(player);
+                saveData();
+            }
+            
+            // 2. Move them
+            movePlayer(player.id, moves);
+        }
+
+        // --- CORE FUNCTIONS ---
         loadData();
         if(bonuses.length === 0) setupDefaultBonuses();
         
-        // Init UI
         const customBonus = bonuses.find(b => b.type === "CUSTOM");
         if(customBonus) {
             document.getElementById('set-custom').checked = true;
@@ -368,9 +425,11 @@
 
         renderBoard();
         renderPlayers();
+        
+        // Try connecting immediately
+        connectWebSocket();
 
-        // --- FUNCTIONS ---
-
+        // --- UI HELPERS ---
         function openSettings() {
             document.getElementById('settings-modal').style.display = 'flex';
             document.getElementById('set-board-title').value = document.getElementById('board-title').innerText;
@@ -409,10 +468,7 @@
             const input = document.getElementById('new-name');
             const name = input.value.toUpperCase().substring(0, 4);
             if (!name) return;
-
-            const newPlayer = {
-                id: Date.now(), name: name, tileIndex: 0, colorIndex: Math.floor(Math.random() * 7), finishRank: null
-            };
+            const newPlayer = { id: Date.now(), name: name, tileIndex: 0, colorIndex: Math.floor(Math.random() * 7), finishRank: null };
             players.push(newPlayer);
             input.value = '';
             saveData();
@@ -622,7 +678,6 @@
                 document.getElementById('leaderboard-panel').style.display = 'none';
                 return;
             }
-            
             document.getElementById('leaderboard-panel').style.display = 'block';
 
             const sorted = [...players].sort((a, b) => {
@@ -638,12 +693,7 @@
                 const rankText = p.finishRank ? `🏆 #${p.finishRank}` : `#${index + 1}`;
                 const statusText = p.finishRank ? "FINISHED" : `Tile ${p.tileIndex + 1}`;
                 const nameColor = p.finishRank ? "#FFD700" : "white";
-                
-                div.innerHTML = `
-                    <span class="lb-rank">${rankText}</span>
-                    <span class="lb-name" style="color:${nameColor}">${p.name}</span>
-                    <span class="lb-status">${statusText}</span>
-                `;
+                div.innerHTML = `<span class="lb-rank">${rankText}</span><span class="lb-name" style="color:${nameColor}">${p.name}</span><span class="lb-status">${statusText}</span>`;
                 lb.appendChild(div);
             });
         }
@@ -681,7 +731,6 @@
             localStorage.setItem('holiday_players', JSON.stringify(players));
             localStorage.setItem('holiday_bonuses', JSON.stringify(bonuses));
             localStorage.setItem('holiday_winners', winnerCount);
-            
             const t = document.getElementById('board-title').innerText;
             const d = document.getElementById('board-desc').innerText;
             localStorage.setItem('holiday_title', t);
@@ -695,7 +744,6 @@
             if(p) players = JSON.parse(p);
             if(b) bonuses = JSON.parse(b);
             if(w) winnerCount = parseInt(w);
-            
             const t = localStorage.getItem('holiday_title');
             const d = localStorage.getItem('holiday_desc');
             if(t) document.getElementById('board-title').innerText = t;
