@@ -347,7 +347,8 @@
     <script>
         // --- GAME VARIABLES ---
         let players = [], bonuses = [], winnerCount = 0;
-        let userCoinTotals = {}; // TRACKS COINS PER USER
+        let userSpendable = {}; // Used for Moving (Resets)
+        let userLifetime = {};  // Used for Leaderboard (Never Resets)
         const totalTiles = 30;
         const COST_PER_MOVE = 1000; // 1000 COINS = 1 MOVE
         const colors = ['#ff3b30', '#007aff', '#ff9500', '#af52de', '#ff2d55', '#5ac8fa', '#34c759', '#FFD700']; 
@@ -389,16 +390,19 @@
             const repeatCount = data.data.gift.count || 1;
             const totalValue = giftValue * repeatCount;
 
-            // 1. Update Tracker using CLEAN NAME
-            if (!userCoinTotals[cleanName]) { userCoinTotals[cleanName] = 0; }
-            userCoinTotals[cleanName] += totalValue;
+            // 1. Update Trackers
+            if (!userSpendable[cleanName]) userSpendable[cleanName] = 0;
+            if (!userLifetime[cleanName]) userLifetime[cleanName] = 0;
+            
+            userSpendable[cleanName] += totalValue;
+            userLifetime[cleanName] += totalValue;
 
             // 2. Check Threshold
-            if (userCoinTotals[cleanName] >= COST_PER_MOVE) {
-                const movesToTake = Math.floor(userCoinTotals[cleanName] / COST_PER_MOVE);
+            if (userSpendable[cleanName] >= COST_PER_MOVE) {
+                const movesToTake = Math.floor(userSpendable[cleanName] / COST_PER_MOVE);
                 
-                // Deduct cost
-                userCoinTotals[cleanName] -= (movesToTake * COST_PER_MOVE);
+                // Deduct cost from Spendable (Keep Lifetime Intact)
+                userSpendable[cleanName] -= (movesToTake * COST_PER_MOVE);
 
                 // 3. Find/Create Player
                 let player = players.find(p => p.name === cleanName);
@@ -424,15 +428,10 @@
                 } else {
                     movePlayer(player.id, movesToTake);
                 }
-                
-                // Trigger Save specifically for coin updates
-                saveData();
-                renderLeaderboard(); // Update leaderboard numbers
-            } else {
-                // If they sent coins but didn't move, still save the coins and update LB
-                saveData();
-                renderLeaderboard();
             }
+            // Always update leaderboard (to show new coins)
+            saveData();
+            renderLeaderboard();
         }
         
         // --- SIMULATION FUNCTION ---
@@ -509,8 +508,9 @@
             players.push(newPlayer);
             input.value = '';
             
-            // Manual adds have 0 coins initially
-            if (!userCoinTotals[name]) userCoinTotals[name] = 0;
+            // Manual adds start at 0
+            if (!userLifetime[name]) userLifetime[name] = 0;
+            if (!userSpendable[name]) userSpendable[name] = 0;
             
             saveData();
             renderPlayers();
@@ -547,7 +547,8 @@
             if(confirm("Reset the whole board?")) {
                 players = [];
                 winnerCount = 0;
-                userCoinTotals = {}; 
+                userSpendable = {}; 
+                userLifetime = {};
                 setupDefaultBonuses();
                 if(document.getElementById('set-custom').checked) saveSettings();
                 saveData();
@@ -737,7 +738,7 @@
                 const nameColor = p.finishRank ? "#FFD700" : "white";
                 
                 // --- NEW: COIN TOTAL ---
-                const coins = userCoinTotals[p.name] || 0;
+                const coins = userLifetime[p.name] || 0;
                 
                 div.innerHTML = `
                     <span class="lb-rank">${rankText}</span>
@@ -783,7 +784,8 @@
             localStorage.setItem('holiday_players', JSON.stringify(players));
             localStorage.setItem('holiday_bonuses', JSON.stringify(bonuses));
             localStorage.setItem('holiday_winners', winnerCount);
-            localStorage.setItem('holiday_coins', JSON.stringify(userCoinTotals));
+            localStorage.setItem('holiday_spendable', JSON.stringify(userSpendable));
+            localStorage.setItem('holiday_lifetime', JSON.stringify(userLifetime));
             const t = document.getElementById('board-title').innerText;
             const d = document.getElementById('board-desc').innerText;
             localStorage.setItem('holiday_title', t);
@@ -794,11 +796,15 @@
             const p = localStorage.getItem('holiday_players');
             const b = localStorage.getItem('holiday_bonuses');
             const w = localStorage.getItem('holiday_winners');
-            const c = localStorage.getItem('holiday_coins');
+            const s = localStorage.getItem('holiday_spendable');
+            const l = localStorage.getItem('holiday_lifetime');
+            
             if(p) players = JSON.parse(p);
             if(b) bonuses = JSON.parse(b);
             if(w) winnerCount = parseInt(w);
-            if(c) userCoinTotals = JSON.parse(c);
+            if(s) userSpendable = JSON.parse(s);
+            if(l) userLifetime = JSON.parse(l);
+            
             const t = localStorage.getItem('holiday_title');
             const d = localStorage.getItem('holiday_desc');
             if(t) document.getElementById('board-title').innerText = t;
