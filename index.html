@@ -383,33 +383,31 @@
         // --- HANDLING GIFTS (CUMULATIVE LOGIC) ---
         function handleStreamEvent(data) {
             const username = data.data.user.name;
+            const cleanName = username.toUpperCase().substring(0, 4); // Use Short Name as Key
             
-            // Extract Coin Data (Streamer.bot formats vary, check documentation)
             const giftValue = data.data.gift.coins || 1; 
             const repeatCount = data.data.gift.count || 1;
             const totalValue = giftValue * repeatCount;
 
-            // 1. Update Tracker
-            if (!userCoinTotals[username]) { userCoinTotals[username] = 0; }
-            userCoinTotals[username] += totalValue;
+            // 1. Update Tracker using CLEAN NAME
+            if (!userCoinTotals[cleanName]) { userCoinTotals[cleanName] = 0; }
+            userCoinTotals[cleanName] += totalValue;
 
             // 2. Check Threshold
-            if (userCoinTotals[username] >= COST_PER_MOVE) {
-                // Calculate Moves Earned
-                const movesToTake = Math.floor(userCoinTotals[username] / COST_PER_MOVE);
+            if (userCoinTotals[cleanName] >= COST_PER_MOVE) {
+                const movesToTake = Math.floor(userCoinTotals[cleanName] / COST_PER_MOVE);
                 
                 // Deduct cost
-                userCoinTotals[username] -= (movesToTake * COST_PER_MOVE);
+                userCoinTotals[cleanName] -= (movesToTake * COST_PER_MOVE);
 
                 // 3. Find/Create Player
-                let player = players.find(p => p.name.toUpperCase() === username.toUpperCase().substring(0,4));
+                let player = players.find(p => p.name === cleanName);
                 
                 if (!player) {
-                    // New Player joins!
                     const newId = Date.now();
                     player = {
                         id: newId,
-                        name: username.toUpperCase().substring(0, 4),
+                        name: cleanName,
                         tileIndex: 0,
                         colorIndex: Math.floor(Math.random() * 7),
                         finishRank: null
@@ -417,25 +415,28 @@
                     players.push(player);
                     saveData();
                     
-                    // If they just joined, they spent 1000 coins to get on the board (Tile 0).
-                    // If they earned MORE than 1 move (e.g. sent 2000 coins), move them forward.
                     if (movesToTake > 1) {
                         movePlayer(player.id, movesToTake - 1);
                     } else {
-                        // Just refresh to show them on Tile 0
                         renderPlayers();
                         renderBoard();
                     }
                 } else {
-                    // Existing player moves
                     movePlayer(player.id, movesToTake);
                 }
+                
+                // Trigger Save specifically for coin updates
+                saveData();
+                renderLeaderboard(); // Update leaderboard numbers
+            } else {
+                // If they sent coins but didn't move, still save the coins and update LB
+                saveData();
+                renderLeaderboard();
             }
         }
         
         // --- SIMULATION FUNCTION ---
         function simulateGift() {
-            // Simulates a 1000 Coin Gift (Instant Move)
             const fakeData = {
                 event: { source: 'TikTok', type: 'Gift' },
                 data: {
@@ -463,7 +464,7 @@
         renderBoard();
         renderPlayers();
         
-        connectWebSocket(); // Try auto-connect
+        connectWebSocket(); 
 
         // --- UI HELPERS ---
         function openSettings() {
@@ -507,6 +508,10 @@
             const newPlayer = { id: Date.now(), name: name, tileIndex: 0, colorIndex: Math.floor(Math.random() * 7), finishRank: null };
             players.push(newPlayer);
             input.value = '';
+            
+            // Manual adds have 0 coins initially
+            if (!userCoinTotals[name]) userCoinTotals[name] = 0;
+            
             saveData();
             renderPlayers();
             renderBoard();
@@ -542,7 +547,7 @@
             if(confirm("Reset the whole board?")) {
                 players = [];
                 winnerCount = 0;
-                userCoinTotals = {}; // Reset coins too
+                userCoinTotals = {}; 
                 setupDefaultBonuses();
                 if(document.getElementById('set-custom').checked) saveSettings();
                 saveData();
@@ -730,7 +735,17 @@
                 const rankText = p.finishRank ? `🏆 #${p.finishRank}` : `#${index + 1}`;
                 const statusText = p.finishRank ? "FINISHED" : `Tile ${p.tileIndex + 1}`;
                 const nameColor = p.finishRank ? "#FFD700" : "white";
-                div.innerHTML = `<span class="lb-rank">${rankText}</span><span class="lb-name" style="color:${nameColor}">${p.name}</span><span class="lb-status">${statusText}</span>`;
+                
+                // --- NEW: COIN TOTAL ---
+                const coins = userCoinTotals[p.name] || 0;
+                
+                div.innerHTML = `
+                    <span class="lb-rank">${rankText}</span>
+                    <span class="lb-name" style="color:${nameColor}">
+                        ${p.name} <span style="font-size:11px; opacity:0.7;">(${coins})</span>
+                    </span>
+                    <span class="lb-status">${statusText}</span>
+                `;
                 lb.appendChild(div);
             });
         }
