@@ -337,6 +337,8 @@
                 <button onclick="saveSettings()" style="width:100%; margin-top:10px; background: #007AFF;">Apply</button>
             </div>
             
+            <button onclick="simulateGift()" style="width:100%; background: #FF9500; margin-bottom: 10px; padding: 12px; color: black; font-weight: bold;">🧪 Simulate TikTok Gift</button>
+            
             <button onclick="randomizeBoard()" style="width:100%; background: purple; margin-bottom: 10px; padding: 12px;">🔀 Randomize Board</button>
             <button onclick="document.getElementById('settings-modal').style.display='none'" style="width:100%; background: #ccc; color: black; padding: 12px;">Close</button>
         </div>
@@ -371,6 +373,7 @@
 
             socket.onmessage = (event) => {
                 const data = JSON.parse(event.data);
+                // Check format (Standard Streamer.bot format)
                 if(data.event && data.event.source === 'TikTok' && data.event.type === 'Gift') {
                     handleStreamEvent(data);
                 }
@@ -382,18 +385,15 @@
             };
         }
 
-        // --- HANDLING GIFTS ---
+        // --- HANDLING GIFTS (REAL & SIMULATED) ---
         function handleStreamEvent(data) {
             const username = data.data.user.name;
             const giftName = data.data.gift.name;
-            // Default: 1 Gift = 1 Move. (You can change this logic here)
             const moves = 1; 
             
-            // 1. Find or Create Player
             let player = players.find(p => p.name.toUpperCase() === username.toUpperCase().substring(0,4));
             
             if (!player) {
-                // Auto-Add new player
                 const newId = Date.now();
                 player = {
                     id: newId,
@@ -406,8 +406,20 @@
                 saveData();
             }
             
-            // 2. Move them
             movePlayer(player.id, moves);
+        }
+        
+        // --- SIMULATION FUNCTION ---
+        function simulateGift() {
+            const fakeData = {
+                event: { source: 'TikTok', type: 'Gift' },
+                data: {
+                    user: { name: "TEST_" + Math.floor(Math.random() * 100) },
+                    gift: { name: "Rose", count: 1 }
+                }
+            };
+            handleStreamEvent(fakeData);
+            document.getElementById('settings-modal').style.display='none';
         }
 
         // --- CORE FUNCTIONS ---
@@ -426,8 +438,7 @@
         renderBoard();
         renderPlayers();
         
-        // Try connecting immediately
-        connectWebSocket();
+        connectWebSocket(); // Try auto-connect
 
         // --- UI HELPERS ---
         function openSettings() {
