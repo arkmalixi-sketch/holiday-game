@@ -86,3 +86,5 @@ Click the **Settings** button (Gear Icon) to access the Admin Panel:
 ---
 
 *Built for the streaming community.*
+
+Like it? Tip or Buy me a coffee: https://ko-fi.com/arkayy18
