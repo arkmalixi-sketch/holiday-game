@@ -337,7 +337,7 @@
                 <button onclick="saveSettings()" style="width:100%; margin-top:10px; background: #007AFF;">Apply</button>
             </div>
             
-            <button onclick="simulateGift()" style="width:100%; background: #FF9500; margin-bottom: 10px; padding: 12px; color: black; font-weight: bold;">🧪 Simulate TikTok Gift</button>
+            <button onclick="simulateGift()" style="width:100%; background: #FF9500; margin-bottom: 10px; padding: 12px; color: black; font-weight: bold;">🧪 Simulate TikTok Gift (1000 Coins)</button>
             
             <button onclick="randomizeBoard()" style="width:100%; background: purple; margin-bottom: 10px; padding: 12px;">🔀 Randomize Board</button>
             <button onclick="document.getElementById('settings-modal').style.display='none'" style="width:100%; background: #ccc; color: black; padding: 12px;">Close</button>
@@ -347,7 +347,9 @@
     <script>
         // --- GAME VARIABLES ---
         let players = [], bonuses = [], winnerCount = 0;
+        let userCoinTotals = {}; // TRACKS COINS PER USER
         const totalTiles = 30;
+        const COST_PER_MOVE = 1000; // 1000 COINS = 1 MOVE
         const colors = ['#ff3b30', '#007aff', '#ff9500', '#af52de', '#ff2d55', '#5ac8fa', '#34c759', '#FFD700']; 
 
         // --- WEBSOCKET CONNECTION ---
@@ -357,23 +359,16 @@
             statusDiv.innerText = "🟡 Connecting...";
             statusDiv.style.color = "orange";
             
-            // Connect to local Streamer.bot
             socket = new WebSocket("ws://127.0.0.1:8080/");
 
             socket.onopen = () => {
                 statusDiv.innerText = "🟢 Connected to Streamer.bot";
                 statusDiv.style.color = "green";
-                // Subscribe to TikTok Gifts
-                socket.send(JSON.stringify({
-                    "request": "Subscribe",
-                    "events": { "TikTok": ["Gift"] },
-                    "id": "123"
-                }));
+                socket.send(JSON.stringify({ "request": "Subscribe", "events": { "TikTok": ["Gift"] }, "id": "123" }));
             };
 
             socket.onmessage = (event) => {
                 const data = JSON.parse(event.data);
-                // Check format (Standard Streamer.bot format)
                 if(data.event && data.event.source === 'TikTok' && data.event.type === 'Gift') {
                     handleStreamEvent(data);
                 }
@@ -385,37 +380,67 @@
             };
         }
 
-        // --- HANDLING GIFTS (REAL & SIMULATED) ---
+        // --- HANDLING GIFTS (CUMULATIVE LOGIC) ---
         function handleStreamEvent(data) {
             const username = data.data.user.name;
-            const giftName = data.data.gift.name;
-            const moves = 1; 
             
-            let player = players.find(p => p.name.toUpperCase() === username.toUpperCase().substring(0,4));
-            
-            if (!player) {
-                const newId = Date.now();
-                player = {
-                    id: newId,
-                    name: username.toUpperCase().substring(0, 4),
-                    tileIndex: 0,
-                    colorIndex: Math.floor(Math.random() * 7),
-                    finishRank: null
-                };
-                players.push(player);
-                saveData();
+            // Extract Coin Data (Streamer.bot formats vary, check documentation)
+            const giftValue = data.data.gift.coins || 1; 
+            const repeatCount = data.data.gift.count || 1;
+            const totalValue = giftValue * repeatCount;
+
+            // 1. Update Tracker
+            if (!userCoinTotals[username]) { userCoinTotals[username] = 0; }
+            userCoinTotals[username] += totalValue;
+
+            // 2. Check Threshold
+            if (userCoinTotals[username] >= COST_PER_MOVE) {
+                // Calculate Moves Earned
+                const movesToTake = Math.floor(userCoinTotals[username] / COST_PER_MOVE);
+                
+                // Deduct cost
+                userCoinTotals[username] -= (movesToTake * COST_PER_MOVE);
+
+                // 3. Find/Create Player
+                let player = players.find(p => p.name.toUpperCase() === username.toUpperCase().substring(0,4));
+                
+                if (!player) {
+                    // New Player joins!
+                    const newId = Date.now();
+                    player = {
+                        id: newId,
+                        name: username.toUpperCase().substring(0, 4),
+                        tileIndex: 0,
+                        colorIndex: Math.floor(Math.random() * 7),
+                        finishRank: null
+                    };
+                    players.push(player);
+                    saveData();
+                    
+                    // If they just joined, they spent 1000 coins to get on the board (Tile 0).
+                    // If they earned MORE than 1 move (e.g. sent 2000 coins), move them forward.
+                    if (movesToTake > 1) {
+                        movePlayer(player.id, movesToTake - 1);
+                    } else {
+                        // Just refresh to show them on Tile 0
+                        renderPlayers();
+                        renderBoard();
+                    }
+                } else {
+                    // Existing player moves
+                    movePlayer(player.id, movesToTake);
+                }
             }
-            
-            movePlayer(player.id, moves);
         }
         
         // --- SIMULATION FUNCTION ---
         function simulateGift() {
+            // Simulates a 1000 Coin Gift (Instant Move)
             const fakeData = {
                 event: { source: 'TikTok', type: 'Gift' },
                 data: {
                     user: { name: "TEST_" + Math.floor(Math.random() * 100) },
-                    gift: { name: "Rose", count: 1 }
+                    gift: { name: "Galaxy", count: 1, coins: 1000 }
                 }
             };
             handleStreamEvent(fakeData);
@@ -517,6 +542,7 @@
             if(confirm("Reset the whole board?")) {
                 players = [];
                 winnerCount = 0;
+                userCoinTotals = {}; // Reset coins too
                 setupDefaultBonuses();
                 if(document.getElementById('set-custom').checked) saveSettings();
                 saveData();
@@ -742,6 +768,7 @@
             localStorage.setItem('holiday_players', JSON.stringify(players));
             localStorage.setItem('holiday_bonuses', JSON.stringify(bonuses));
             localStorage.setItem('holiday_winners', winnerCount);
+            localStorage.setItem('holiday_coins', JSON.stringify(userCoinTotals));
             const t = document.getElementById('board-title').innerText;
             const d = document.getElementById('board-desc').innerText;
             localStorage.setItem('holiday_title', t);
@@ -752,9 +779,11 @@
             const p = localStorage.getItem('holiday_players');
             const b = localStorage.getItem('holiday_bonuses');
             const w = localStorage.getItem('holiday_winners');
+            const c = localStorage.getItem('holiday_coins');
             if(p) players = JSON.parse(p);
             if(b) bonuses = JSON.parse(b);
             if(w) winnerCount = parseInt(w);
+            if(c) userCoinTotals = JSON.parse(c);
             const t = localStorage.getItem('holiday_title');
             const d = localStorage.getItem('holiday_desc');
             if(t) document.getElementById('board-title').innerText = t;
@@ -773,6 +802,21 @@
             document.getElementById('alert-modal').style.display = 'flex';
         }
         function closeModal() { document.getElementById('alert-modal').style.display = 'none'; }
+        function openSettings() { document.getElementById('settings-modal').style.display = 'flex'; }
+        function saveSettings() { 
+            const isCustomEnabled = document.getElementById('set-custom').checked;
+            bonuses = bonuses.filter(b => b.type !== "CUSTOM");
+            if (isCustomEnabled) {
+                const tileVal = parseInt(document.getElementById('custom-idx').value) - 1; 
+                const title = document.getElementById('custom-title').value;
+                const msg = document.getElementById('custom-msg').value;
+                bonuses.push({
+                    id: 999, tileIndex: tileVal, type: "CUSTOM", isClaimed: false, customTitle: title, customMsg: msg
+                });
+            }
+            saveData();
+            renderBoard(); 
+        }
     </script>
 </body>
 </html>
